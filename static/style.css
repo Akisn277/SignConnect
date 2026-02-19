@@ -1,0 +1,133 @@
+/* ===== GLOBAL ===== */
+body {
+    margin: 0;
+    font-family: 'Segoe UI', sans-serif;
+    background: #f4f6f9;
+    overflow: hidden;
+}
+
+.container {
+    display: flex;
+    height: 100vh;
+    position: relative;
+}
+
+/* ===== TOGGLE BUTTON ===== */
+#collapseBtn {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    z-index: 1000;
+    background: #2e7d32;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 12px;
+    cursor: pointer;
+}
+
+#collapseBtn:hover {
+    background: #1b5e20;
+}
+
+/* ===== DEFAULT LAYOUT ===== */
+.meeting-area {
+    width: 40%;
+    padding: 30px;
+    background: #eef1f5;
+    border-right: 1px solid #ddd;
+    display: flex;
+    flex-direction: column;
+    transition: all 0.3s ease;
+}
+
+.panel {
+    width: 60%;
+    padding: 40px;
+    background: white;
+    display: flex;
+    flex-direction: column;
+    gap: 25px;
+    transition: all 0.3s ease;
+}
+
+/* ===== COLLAPSED STATE ===== */
+.container.collapsed .meeting-area {
+    width: 0;
+    padding: 0;
+    overflow: hidden;
+    border: none;
+}
+
+.container.collapsed .panel {
+    width: 100%;
+    align-items: center;
+}
+
+.container.collapsed .panel > * {
+    max-width: 900px;
+    width: 100%;
+}
+
+/* ===== SECTIONS ===== */
+.section {
+    padding: 20px;
+    background: #f9fafc;
+    border-radius: 10px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+}
+
+/* ===== VIDEO ===== */
+video {
+    width: 100%;
+    max-height: 260px;
+    border-radius: 10px;
+    margin: 15px 0;
+    background: black;
+}
+
+/* ===== BUTTONS ===== */
+button {
+    padding: 10px 18px;
+    border: none;
+    border-radius: 6px;
+    background: #2e7d32;
+    color: white;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+button:hover {
+    background: #1b5e20;
+}
+
+/* ===== MEETING BOX ===== */
+.meeting-box {
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+    margin-top: 20px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+}
+
+.status {
+    margin-top: 15px;
+    font-weight: 500;
+}
+
+.connected {
+    color: green;
+}
+
+.disconnected {
+    color: red;
+}
+
+.instructions {
+    margin-top: 15px;
+    font-size: 14px;
+}
+
+.instructions ol {
+    padding-left: 20px;
+}

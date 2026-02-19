@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SignConnect</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<div class="container" id="container">
+
+    <!-- Toggle Button (Always Visible) -->
+    <button id="collapseBtn" onclick="toggleMeeting()">☰</button>
+
+    <!-- LEFT: MEETING AREA -->
+    <div class="meeting-area" id="meetingArea">
+        <h2>Meeting Controls</h2>
+
+        <div class="meeting-box">
+            <button onclick="openMeeting()">Join Google Meet</button>
+
+            <p class="status">
+                Status:
+                <span id="statusIndicator" class="disconnected">
+                    ● Not Connected
+                </span>
+            </p>
+
+            <div class="instructions">
+                <h4>Instructions:</h4>
+                <ol>
+                    <li>Click "Join Google Meet"</li>
+                    <li>Keep this page open</li>
+                    <li>Unmute microphone if using AI voice output</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+
+    <!-- RIGHT: SIGNCONNECT PANEL -->
+    <div class="panel" id="rightPanel">
+        <h2>SignConnect Panel</h2>
+
+        <div class="section">
+            <h3>Live Captions</h3>
+            <p id="voiceText">Waiting for speech...</p>
+        </div>
+
+        <div class="section">
+            <h3>Sign Detection</h3>
+
+            <!-- Camera Feed -->
+            <video id="cameraFeed" autoplay playsinline></video>
+
+            <p id="signText">Waiting for sign...</p>
+
+            <button onclick="playAudio()">Play Audio</button>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    console.log("JS Loaded");
+function openMeeting() {
+    window.open(
+        "https://meet.google.com",
+        "MeetingWindow",
+        "width=1000,height=700"
+    );
+
+    const status = document.getElementById("statusIndicator");
+    status.innerText = "● Connected";
+    status.classList.remove("disconnected");
+    status.classList.add("connected");
+}
+
+async function fetchData() {
+    const response = await fetch("/api/live");
+    const data = await response.json();
+
+    document.getElementById("voiceText").innerText = data.voice_text;
+    document.getElementById("signText").innerText = data.sign_text;
+}
+
+setInterval(fetchData, 2000);
+
+function playAudio() {
+    const text = document.getElementById("signText").innerText;
+
+    const speech = new SpeechSynthesisUtterance(text);
+    speech.lang = "en-US";
+    speech.rate = 1;
+    speech.pitch = 1;
+
+    window.speechSynthesis.speak(speech);
+}
+
+async function startCamera() {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        const video = document.getElementById("cameraFeed");
+        video.srcObject = stream;
+    } catch (error) {
+        alert("Camera access denied or not available.");
+        console.error(error);
+    }
+}
+
+startCamera();
+
+/* CLEAN TOGGLE USING CLASS */
+function toggleMeeting() {
+    const container = document.getElementById("container");
+
+    console.log("Toggle clicked"); // DEBUG LINE
+
+    container.classList.toggle("collapsed");
+}
+</script>
+
+</body>
+</html>
