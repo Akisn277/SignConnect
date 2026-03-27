@@ -49,7 +49,7 @@
             <h3>Sign Detection</h3>
 
             <!-- Camera Feed -->
-            <video id="cameraFeed" autoplay playsinline></video>
+            <img src="/video_feed" class="camera-feed">
 
             <p id="signText">Waiting for sign...</p>
 
@@ -130,22 +130,28 @@ function playAudio() {
     window.speechSynthesis.speak(speech);
 }
 
-/* 📷 CAMERA */
-async function startCamera() {
-    try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        const video = document.getElementById("cameraFeed");
-        video.srcObject = stream;
-    } catch (error) {
-        alert("Camera access denied or not available.");
-        console.error(error);
-    }
-}
 
-startCamera();
 
 /* 🎤 AUTO START TRANSCRIPTION */
 startLiveTranscription();
+
+async function fetchData() {
+    try {
+        const response = await fetch("/api/live");
+        const data = await response.json();
+
+        console.log("API DATA:", data); // debug
+
+        document.getElementById("voiceText").innerText = data.voice_text;
+        document.getElementById("signText").innerText = data.sign_text;
+
+    } catch (error) {
+        console.error("Error fetching data:", error);
+    }
+}
+
+// 🔥 VERY IMPORTANT: call repeatedly
+setInterval(fetchData, 1000);
 
 /* TOGGLE UI */
 function toggleMeeting() {

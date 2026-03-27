@@ -131,3 +131,19 @@ button:hover {
 .instructions ol {
     padding-left: 20px;
 }
+.camera-feed {
+    width: 100%;
+    max-width: 400px;   /* 👈 smaller camera */
+    height: auto;
+    border-radius: 10px;
+}
+body {
+    overflow-y: auto;
+}
+.panel {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    max-height: 90vh;
+    overflow-y: auto;
+}

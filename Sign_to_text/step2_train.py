@@ -49,10 +49,9 @@ tf.random.set_seed(SEED)
 # CONFIG
 # =============================================================================
 DATA_CONFIG = {
-    "x_path"     : "X.npy",       # output from step1_prepare_data.py
-    "y_path"     : "y.npy",
+    "x_path": "Sign_to_text/X.npy",
+    "y_path": "Sign_to_text/y.npy"
 }
-
 MODEL_CONFIG = {
     "lstm_units_1"  : 128,
     "lstm_units_2"  : 64,
