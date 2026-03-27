@@ -58,9 +58,9 @@
     </div>
 
 </div>
-
 <script>
-    console.log("JS Loaded");
+console.log("JS Loaded");
+
 function openMeeting() {
     window.open(
         "https://meet.google.com",
@@ -74,27 +74,63 @@ function openMeeting() {
     status.classList.add("connected");
 }
 
-async function fetchData() {
-    const response = await fetch("/api/live");
-    const data = await response.json();
+/* 🎤 LIVE SPEECH-TO-TEXT (REAL-TIME) */
+let recognition;
 
-    document.getElementById("voiceText").innerText = data.voice_text;
-    document.getElementById("signText").innerText = data.sign_text;
+function startLiveTranscription() {
+    if (!('webkitSpeechRecognition' in window)) {
+        alert("Your browser does not support speech recognition. Use Chrome.");
+        return;
+    }
+
+    recognition = new webkitSpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+
+    recognition.onresult = (event) => {
+        let transcript = "";
+
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+            transcript += event.results[i][0].transcript;
+        }
+
+        document.getElementById("voiceText").innerText = transcript;
+    };
+
+    recognition.onerror = (event) => {
+        console.error("Speech recognition error:", event.error);
+    };
+
+    recognition.start();
 }
 
-setInterval(fetchData, 2000);
-
+/* 🔊 TEXT TO SPEECH */
 function playAudio() {
     const text = document.getElementById("signText").innerText;
 
+    if (!text || text.trim() === "") {
+        alert("No text to speak!");
+        return;
+    }
+
     const speech = new SpeechSynthesisUtterance(text);
-    speech.lang = "en-US";
-    speech.rate = 1;
-    speech.pitch = 1;
+
+    // Settings
+    speech.lang = "en-US";   // language
+    speech.rate = 1;         // speed (0.5 - 2)
+    speech.pitch = 1;        // tone (0 - 2)
+    speech.volume = 1;       // volume (0 - 1)
+
+    // Optional: choose voice
+    const voices = window.speechSynthesis.getVoices();
+    if (voices.length > 0) {
+        speech.voice = voices[0]; // you can change index
+    }
 
     window.speechSynthesis.speak(speech);
 }
 
+/* 📷 CAMERA */
 async function startCamera() {
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: true });
@@ -108,12 +144,12 @@ async function startCamera() {
 
 startCamera();
 
-/* CLEAN TOGGLE USING CLASS */
+/* 🎤 AUTO START TRANSCRIPTION */
+startLiveTranscription();
+
+/* TOGGLE UI */
 function toggleMeeting() {
     const container = document.getElementById("container");
-
-    console.log("Toggle clicked"); // DEBUG LINE
-
     container.classList.toggle("collapsed");
 }
 </script>

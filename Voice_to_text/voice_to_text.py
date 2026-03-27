@@ -1,10 +1,24 @@
-import random
+import speech_recognition as sr
 
 def voicetotxt():
-    samples = [
-        "Hello everyone",
-        "Can you hear me?",
-        "Let's start the meeting",
-        "Please check the report"
-    ]
-    return random.choice(samples)
+    recognizer = sr.Recognizer()
+
+    with sr.Microphone() as source:
+        print("Listening...")
+        recognizer.adjust_for_ambient_noise(source)
+
+        try:
+            audio = recognizer.listen(source, timeout=5)
+            print("Processing...")
+
+            text = recognizer.recognize_google(audio)
+            return text
+
+        except sr.WaitTimeoutError:
+            return "No speech detected"
+
+        except sr.UnknownValueError:
+            return "Could not understand audio"
+
+        except sr.RequestError:
+            return "API unavailable"
