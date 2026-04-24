@@ -49,9 +49,10 @@ tf.random.set_seed(SEED)
 # CONFIG
 # =============================================================================
 DATA_CONFIG = {
-    "x_path": "Sign_to_text/X.npy",
-    "y_path": "Sign_to_text/y.npy"
+    "x_path" : r"C:\Users\vidhy\OneDrive - SRM Institute of Science & Technology\Desktop\signconnect\X.npy",
+    "y_path" : r"C:\Users\vidhy\OneDrive - SRM Institute of Science & Technology\Desktop\signconnect\y.npy",
 }
+
 MODEL_CONFIG = {
     "lstm_units_1"  : 128,
     "lstm_units_2"  : 64,
@@ -64,8 +65,10 @@ MODEL_CONFIG = {
     "test_split"    : 0.15,
 }
 
-SAVE_DIR = "./models"
-os.makedirs(SAVE_DIR, exist_ok=True)
+# Classes to remove before training
+BAD_CLASSES = ["careful", "hungry", "write"]
+
+SAVE_DIR = r"C:\Users\vidhy\OneDrive - SRM Institute of Science & Technology\Desktop\signconnect\models"
 
 
 # =============================================================================
@@ -79,7 +82,6 @@ def load_data(cfg):
     print(f"[INFO] y shape : {y_raw.shape}")
     print(f"[INFO] Classes : {np.unique(y_raw)}")
 
-    # Sanity check
     assert X.ndim == 3,          "X must be 3-D: (samples, timesteps, features)"
     assert len(X) == len(y_raw), "X and y must have the same number of samples"
     assert X.shape[2] == 42,     "Expected 42 features (21 landmarks × x,y)"
@@ -87,9 +89,18 @@ def load_data(cfg):
 
 
 # =============================================================================
-# 2.  PREPROCESS
+# 2.  PREPROCESS  (bad-class removal happens HERE, before any split)
 # =============================================================================
 def preprocess(X, y_raw, cfg):
+
+    # ── ✅ FIX: Remove bad classes FIRST, before split or encoding ────────────
+    if BAD_CLASSES:
+        mask  = ~np.isin(y_raw, BAD_CLASSES)
+        X     = X[mask]
+        y_raw = y_raw[mask]
+        removed = set(BAD_CLASSES) & set(np.unique(y_raw))   # for log
+        print(f"[INFO] Removed bad classes {BAD_CLASSES} → {len(X)} samples remaining")
+
     le    = LabelEncoder()
     y_int = le.fit_transform(y_raw)
     n_cls = len(le.classes_)
@@ -98,18 +109,18 @@ def preprocess(X, y_raw, cfg):
     # ── Splits ───────────────────────────────────────────────────────────────
     test_val = cfg["val_split"] + cfg["test_split"]
     X_tr, X_tmp, y_tr, y_tmp = train_test_split(
-        X, y_int, test_size=test_val, random_state=SEED)
+        X, y_int, test_size=test_val, random_state=SEED, stratify=y_int)
 
     rel_test = cfg["test_split"] / test_val
     X_val, X_te, y_val, y_te = train_test_split(
-        X_tmp, y_tmp, test_size=rel_test, random_state=SEED)
+        X_tmp, y_tmp, test_size=rel_test, random_state=SEED, stratify=y_tmp)
 
     # ── Normalize (fit on train only) ────────────────────────────────────────
-    N, T, F   = X_tr.shape
-    flat_tr   = X_tr.reshape(-1, F)
-    feat_min  = flat_tr.min(axis=0)
-    feat_max  = flat_tr.max(axis=0)
-    feat_rng  = np.where((feat_max - feat_min) == 0, 1.0, feat_max - feat_min)
+    N, T, F  = X_tr.shape
+    flat_tr  = X_tr.reshape(-1, F)
+    feat_min = flat_tr.min(axis=0)
+    feat_max = flat_tr.max(axis=0)
+    feat_rng = np.where((feat_max - feat_min) == 0, 1.0, feat_max - feat_min)
 
     def norm(arr):
         N2, T2, F2 = arr.shape
@@ -118,20 +129,14 @@ def preprocess(X, y_raw, cfg):
     X_tr  = norm(X_tr)
     X_val = norm(X_val)
     X_te  = norm(X_te)
-    
-    # REMOVE BAD CLASSES
-    bad_classes = ["careful", "hungry", "write"]
 
-    mask = ~np.isin(y_raw, bad_classes)
-
-    X = X[mask]
-    y_raw = y_raw[mask]
-    # ── Class weights (handles imbalanced data) ───────────────────────────────
+    # ── Class weights ────────────────────────────────────────────────────────
     unique_classes = np.unique(y_tr)
-    cw_values = compute_class_weight("balanced", classes=unique_classes, y=y_tr)
-    class_weights = {i: 1.0 for i in range(n_cls)}
+    cw_values      = compute_class_weight("balanced", classes=unique_classes, y=y_tr)
+    class_weights  = {i: 1.0 for i in range(n_cls)}
     for i, cls in enumerate(unique_classes):
-       class_weights[int(cls)] = cw_values[i]
+        class_weights[int(cls)] = cw_values[i]
+
     print(f"\n[INFO] Split sizes  →  train: {len(X_tr)}  val: {len(X_val)}  test: {len(X_te)}")
     print(f"[INFO] Class weights: { {le.classes_[k]: round(v, 2) for k, v in class_weights.items()} }")
 
@@ -157,7 +162,6 @@ def build_model(timesteps, features, n_classes, cfg):
     model = Sequential([
         Input(shape=(timesteps, features)),
 
-        # BiLSTM block 1
         Bidirectional(LSTM(cfg["lstm_units_1"],
                            return_sequences=True,
                            dropout=0.2, recurrent_dropout=0.2),
@@ -165,7 +169,6 @@ def build_model(timesteps, features, n_classes, cfg):
         BatchNormalization(),
         Dropout(cfg["dropout_rate"]),
 
-        # BiLSTM block 2
         Bidirectional(LSTM(cfg["lstm_units_2"],
                            return_sequences=False,
                            dropout=0.2, recurrent_dropout=0.2),
@@ -173,7 +176,6 @@ def build_model(timesteps, features, n_classes, cfg):
         BatchNormalization(),
         Dropout(cfg["dropout_rate"]),
 
-        # Classifier head
         Dense(cfg["dense_units"], activation="relu"),
         Dropout(cfg["dropout_rate"] / 2),
         Dense(n_classes, activation="softmax"),
@@ -234,8 +236,13 @@ def evaluate(model, splits, meta):
     y_pred = np.argmax(model.predict(X_te, verbose=0), axis=1)
 
     print("\n── Classification Report ─────────────────────────────────────")
-    print(classification_report(y_true, y_pred, labels=np.arange(len(le.classes_)), target_names=le.classes_, zero_division=0))
-    # Confusion matrix
+    print(classification_report(
+        y_true, y_pred,
+        labels=np.arange(len(le.classes_)),
+        target_names=le.classes_,
+        zero_division=0
+    ))
+
     cm = confusion_matrix(y_true, y_pred)
     plt.figure(figsize=(8, 6))
     sns.heatmap(cm, annot=True, fmt="d", cmap="Blues",
@@ -290,12 +297,12 @@ def main():
     print("  Sign Language BiLSTM — Training Pipeline")
     print("=" * 60)
 
-    X, y_raw       = load_data(DATA_CONFIG)
-    splits, meta   = preprocess(X, y_raw, MODEL_CONFIG)
-    model          = build_model(meta["timesteps"], meta["features"],
-                                 meta["n_classes"], MODEL_CONFIG)
+    X, y_raw     = load_data(DATA_CONFIG)
+    splits, meta = preprocess(X, y_raw, MODEL_CONFIG)
+    model        = build_model(meta["timesteps"], meta["features"],
+                               meta["n_classes"], MODEL_CONFIG)
     model.summary()
-    history        = train(model, splits, meta, MODEL_CONFIG)
+    history      = train(model, splits, meta, MODEL_CONFIG)
     plot_history(history)
     evaluate(model, splits, meta)
     save(model, meta)
