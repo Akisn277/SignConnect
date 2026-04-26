@@ -5,11 +5,12 @@ import mediapipe as mp
 import tensorflow as tf
 from collections import deque
 import random
+import time
 
 # =============================================================================
 # CONFIG
 # =============================================================================
-BASE_DIR     = r"C:\Users\vidhy\OneDrive - SRM Institute of Science & Technology\Desktop\signconnect"
+BASE_DIR     = os.path.dirname(os.path.abspath(__file__))
 MODEL_DIR    = os.path.join(BASE_DIR, "models")
 MODEL_PATH   = os.path.join(MODEL_DIR, "best_bilstm.keras")
 CLASSES_PATH = os.path.join(MODEL_DIR, "classes.npy")
@@ -159,104 +160,86 @@ def draw_ui(frame, sentence):
 # =============================================================================
 def run_sign_detection():
     global latest_prediction, latest_sign_label, latest_confidence, _current_frame
-
-    print("[INFO] Starting hand sign phrase generator ...")
-
-    # Download hand landmarker if needed
-    model_task = os.path.join(MODEL_DIR, "hand_landmarker.task")
-    if not os.path.exists(model_task):
-        print("[INFO] Downloading hand landmarker model ...")
-        import urllib.request
-        url = ("https://storage.googleapis.com/mediapipe-models/"
-               "hand_landmarker/hand_landmarker/float16/latest/hand_landmarker.task")
-        urllib.request.urlretrieve(url, model_task)
-
-    BaseOptions           = mp.tasks.BaseOptions
-    HandLandmarker        = mp.tasks.vision.HandLandmarker
-    HandLandmarkerOptions = mp.tasks.vision.HandLandmarkerOptions
-    VisionRunningMode     = mp.tasks.vision.RunningMode
-
-    options = HandLandmarkerOptions(
-        base_options=BaseOptions(model_asset_path=model_task),
-        running_mode=VisionRunningMode.IMAGE,
-        num_hands=1,
-        min_hand_detection_confidence=0.5,
-        min_hand_presence_confidence=0.5,
-        min_tracking_confidence=0.5,
-    )
+    print("🔥 Sign detection thread started")
 
     cap = cv2.VideoCapture(0)
     if not cap.isOpened():
-        print("[ERROR] Could not open webcam!")
+        print("❌ Camera failed")
         return
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH,  640)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+    print("✅ Camera opened")
 
-    sentence          = ""
-    prev_hand_present = False
-    hold_counter      = 0
-    HOLD_FRAMES       = 15   # hand must be held for 15 frames before generating phrase
+    try:
+        BaseOptions = mp.tasks.BaseOptions
+        HandLandmarker = mp.tasks.vision.HandLandmarker
+        HandLandmarkerOptions = mp.tasks.vision.HandLandmarkerOptions
+        VisionRunningMode = mp.tasks.vision.RunningMode
 
-    print("\n[INFO] Show any hand sign — phrase updates every new sign!\n")
+        model_task = os.path.join(MODEL_DIR, "hand_landmarker.task")
 
-    with HandLandmarker.create_from_options(options) as landmarker:
-        while True:
+        # ensure folder exists
+        os.makedirs(MODEL_DIR, exist_ok=True)
+
+        # download if missing
+        if not os.path.exists(model_task):
+            print("⬇️ Downloading mediapipe model...")
+            import urllib.request
+
+            urllib.request.urlretrieve(
+                "https://storage.googleapis.com/mediapipe-models/"
+                "hand_landmarker/hand_landmarker/float16/latest/hand_landmarker.task",
+                model_task
+            )
+
+            print("✅ Model downloaded")
+
+        options = HandLandmarkerOptions(
+            base_options=BaseOptions(model_asset_path=model_task),
+            running_mode=VisionRunningMode.IMAGE,
+            num_hands=1,
+            min_hand_detection_confidence=0.5
+        )
+        landmarker = HandLandmarker.create_from_options(options)
+        print("✅ Mediapipe loaded")
+    except Exception as e:
+        print("💥 Mediapipe init failed:", e)
+        landmarker = None
+
+    sentence = ""
+    prediction_interval_sec = 3.5
+    last_prediction_time = 0.0
+    while True:
+        try:
             ret, frame = cap.read()
             if not ret:
                 continue
 
-            frame    = cv2.flip(frame, 1)
-            img_rgb  = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=img_rgb)
-            result   = landmarker.detect(mp_image)
+            frame = cv2.flip(frame, 1)
 
-            hand_present = bool(result.hand_landmarks)
+            if landmarker:
+                img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=img_rgb)
+                result = landmarker.detect(mp_image)
 
-            if hand_present:
-                # Draw hand dots
-                lms = result.hand_landmarks[0]
-                h_px, w_px = frame.shape[:2]
-                for lm in lms:
-                    cx, cy = int(lm.x * w_px), int(lm.y * h_px)
-                    cv2.circle(frame, (cx, cy), 4, (0, 255, 200), -1)
+                if result.hand_landmarks:
+                    lms = result.hand_landmarks[0]
+                    h, w = frame.shape[:2]
+                    for lm in lms:
+                        cx, cy = int(lm.x * w), int(lm.y * h)
+                        cv2.circle(frame, (cx, cy), 4, (0, 255, 200), -1)
 
-                hold_counter += 1
+                    if time.time() - last_prediction_time >= prediction_interval_sec:
+                        latest_prediction = get_sentence()
+                        last_prediction_time = time.time()
 
-                # Generate new phrase after holding for HOLD_FRAMES
-                if hold_counter == HOLD_FRAMES:
-                    sentence          = get_sentence()
-                    latest_prediction = sentence
-                    print(f"[PHRASE] {sentence}")
+                    sentence = latest_prediction
+                else:
+                    sentence = ""
+                    latest_prediction = ""
 
-            else:
-                # Hand removed — reset
-                hold_counter      = 0
-                prev_hand_present = False
-                sentence          = ""
-                latest_prediction = ""
-                latest_sign_label = ""
-                latest_confidence = 0.0
-
-            prev_hand_present = hand_present
-
-            # ── Draw UI and share frame with Flask ────────────────────────────
             frame = draw_ui(frame, sentence)
             _current_frame = frame
-
-            cv2.imshow("ISL Sign Language -> Text", frame)
-            key = cv2.waitKey(1) & 0xFF
-            if key == ord('q'):
-                break
-            elif key == ord('c'):
-                sentence          = ""
-                latest_prediction = ""
-                latest_sign_label = ""
-                latest_confidence = 0.0
-                hold_counter      = 0
-
-    cap.release()
-    cv2.destroyAllWindows()
-    print("[INFO] Done!")
+        except Exception as e:
+            print("💥 Loop crash:", e)
 
 
 # =============================================================================

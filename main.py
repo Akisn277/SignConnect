@@ -3,12 +3,16 @@ import threading
 import cv2
 
 from Voice_to_text.voice_to_text import voicetotxt
-import Sign_to_text.isl_inference as isl
+from Sign_to_text import isl_inference as isl
 
 app = Flask(__name__)
 
-# 🔥 Start sign detection in background (FIXED)
-threading.Thread(target=isl.run_sign_detection, daemon=True).start()
+# 🔥 Start sign detection in background
+def start_sign_thread():
+    print("🔥 Starting sign detection thread...")
+    isl.run_sign_detection()
+
+threading.Thread(target=start_sign_thread, daemon=True).start()
 
 
 # ================= API =================
@@ -16,16 +20,17 @@ threading.Thread(target=isl.run_sign_detection, daemon=True).start()
 def live():
     return jsonify({
         "voice_text": "Listening...",
-        "sign_text": isl.latest_prediction  # ✅ FIXED
+        "sign_text": isl.latest_prediction
     })
 
 
 # ================= VIDEO STREAM =================
 def gen_frames():
     while True:
-        frame = isl.get_frame()  # ✅ FIXED
+        frame = isl.get_frame()
 
         if frame is None:
+            print("⚠️ Waiting for frame...")
             continue
 
         ret, buffer = cv2.imencode('.jpg', frame)
